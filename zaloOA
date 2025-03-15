@@ -1,0 +1,17 @@
+Để tạo bot Zalo OA hướng dẫn đăng ký dịch vụ công căn cước công dân, bạn có thể làm theo các bước sau:  
+
+### **1. Xác định Chức năng Cần có**  
+- **Hướng dẫn thủ tục:** Cung cấp thông tin về các bước đăng ký CCCD.  
+- **Trả lời câu hỏi tự động:** Giải đáp các thắc mắc thường gặp.  
+- **Gửi link dịch vụ công:** Điều hướng người dùng đến trang web chính thức.  
+- **Hỗ trợ tra cứu hồ sơ:** Nếu có API từ cơ quan chính phủ, bot có thể kiểm tra tiến độ hồ sơ.  
+
+### **2. Tạo Bot trên Zalo OA**  
+- Đăng ký tài khoản Zalo Official Account (OA) tại: [https://oa.zalo.me/](https://oa.zalo.me/)  
+- Vào **Quản lý OA** → **API & Webhook** để lấy thông tin kết nối bot.  
+
+### **3. Phát triển Chatbot**  
+Có thể dùng:  
+- **Zalo Cloud API**: Để gửi/nhận tin nhắn.  
+- **Dialogflow hoặc OpenAI API**: Để xử lý ngôn ngữ tự nhiên.  
+- **Node.js/Python**: Viết backend để kết nối với Zalo API.  
