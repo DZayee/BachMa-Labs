@@ -1,5 +1,6 @@
 # BachMa-Labs
-![image](https://github.com/user-attachments/assets/fc9e3600-c041-4b72-8653-48f963094a52)
+![image](https://github.com/user-attachments/assets/dbac4525-3245-4a42-aba0-d16c0ae3cdc2)
+
 
 
 Mission:
