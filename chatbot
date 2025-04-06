@@ -1,0 +1,227 @@
+Dưới đây là một ví dụ mã nguồn cơ bản để xây dựng một chatbot quản lý công việc trên Zalo bằng Node.js, sử dụng Zalo API và một cơ sở dữ liệu đơn giản (ở đây tôi dùng SQLite để minh họa). Đây là phiên bản cơ bản, tập trung vào các tính năng như tạo task, xem danh sách task và thông báo. Bạn có thể mở rộng thêm dựa trên nhu cầu.
+Yêu cầu
+Zalo OA: Bạn cần tạo một Official Account trên Zalo và lấy Access Token từ Zalo Dev Portal.
+Môi trường: Cài đặt Node.js và npm.
+Thư viện: Sử dụng axios để gọi API Zalo, sqlite3 để lưu trữ dữ liệu.
+Cấu trúc dự án
+zalo-task/
+├── db.js           // Quản lý cơ sở dữ liệu SQLite
+├── zalo.js         // Xử lý API Zalo
+├── index.js        // File chính
+├── package.json    // Cấu hình dự án
+1. Cài đặt môi trường
+Tạo thư mục dự án và cài đặt các gói cần thiết:
+bash
+mkdir zalo-task
+cd zalo-task
+npm init -y
+npm install axios sqlite3 express body-parser
+2. File package.json
+json
+{
+  "name": "zalo-task",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "body-parser": "^1.20.2",
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.7"
+  }
+}
+3. File db.js - Quản lý cơ sở dữ liệu
+javascript
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./tasks.db');
+
+// Tạo bảng tasks nếu chưa tồn tại
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      assignedTo TEXT,
+      status TEXT DEFAULT 'Chưa làm',
+      deadline TEXT
+    )
+  `);
+});
+
+const addTask = (title, assignedTo, deadline, callback) => {
+  db.run(
+    `INSERT INTO tasks (title, assignedTo, deadline) VALUES (?, ?, ?)`,
+    [title, assignedTo, deadline],
+    callback
+  );
+};
+
+const getTasks = (callback) => {
+  db.all(`SELECT * FROM tasks`, [], callback);
+};
+
+const updateTaskStatus = (id, status, callback) => {
+  db.run(`UPDATE tasks SET status = ? WHERE id = ?`, [status, id], callback);
+};
+
+module.exports = { addTask, getTasks, updateTaskStatus };
+4. File zalo.js - Xử lý API Zalo
+javascript
+const axios = require('axios');
+
+// Thay bằng Access Token của bạn từ Zalo OA
+const ACCESS_TOKEN = 'YOUR_ZALO_ACCESS_TOKEN';
+const ZALO_API_URL = 'https://openapi.zalo.me/v2.0/oa/message';
+
+// Gửi tin nhắn văn bản
+const sendMessage = async (userId, message) => {
+  try {
+    const response = await axios.post(
+      ZALO_API_URL,
+      {
+        recipient: { user_id: userId },
+        message: { text: message }
+      },
+      {
+        headers: {
+          'access_token': ACCESS_TOKEN,
+          'Content-Type': xo'application/json'
+        }
+      }
+    );
+    console.log('Message sent:', response.data);
+  } catch (error) {
+    console.error('Error sending message:', error.response.data);
+  }
+};
+
+// Gửi tin nhắn với nút bấm
+const sendButtonMessage = async (userId, text, buttons) => {
+  try {
+    const response = await axios.post(
+      ZALO_API_URL,
+      {
+        recipient: { user_id: userId },
+        message: {
+          text: text,
+          attachment: {
+            type: 'template',
+            payload: {
+              template_type: 'list',
+              elements: buttons.map(btn => ({
+                title: btn.title,
+                subtitle: btn.subtitle || '',
+                action: { type: 'oa.query.show', payload: btn.payload }
+              }))
+            }
+          }
+        }
+      },
+      {
+        headers: {
+          'access_token': ACCESS_TOKEN,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    console.log('Button message sent:', response.data);
+  } catch (error) {
+    console.error('Error sending button message:', error.response.data);
+  }
+};
+
+module.exports = { sendMessage, sendButtonMessage };
+5. File index.js - Logic chính
+javascript
+const express = require('express');
+const bodyParser = require('body-parser');
+const { addTask, getTasks, updateTaskStatus } = require('./db');
+const { sendMessage, sendButtonMessage } = require('./zalo');
+
+const app = express();
+app.use(bodyParser.json());
+
+const PORT = 3000;
+
+// Xử lý webhook từ Zalo
+app.post('/webhook', (req, res) => {
+  const { user_id, message } = req.body;
+
+  if (!message || !user_id) {
+    return res.status(400).send('Invalid request');
+  }
+
+  const text = message.text.toLowerCase();
+
+  // Tạo task
+  if (text.startsWith('tạo task')) {
+    const taskDetails = text.replace('tạo task', '').trim();
+    const [title, deadline] = taskDetails.split(' trước ');
+    addTask(title, user_id, deadline, (err) => {
+      if (err) {
+        sendMessage(user_id, 'Lỗi khi tạo task. Vui lòng thử lại!');
+      } else {
+        sendMessage(user_id, `Task "${title}" đã được tạo. Hạn chót: ${deadline}`);
+      }
+    });
+  }
+
+  // Xem danh sách task
+  else if (text === 'xem danh sách task') {
+    getTasks((err, rows) => {
+      if (err) {
+        sendMessage(user_id, 'Lỗi khi lấy danh sách task!');
+      } else if (rows.length === 0) {
+        sendMessage(user_id, 'Hiện tại chưa có task nào.');
+      } else {
+        const taskList = rows.map((task, index) => `${index + 1}. ${task.title} - ${task.status}`).join('\n');
+        sendMessage(user_id, `Danh sách task:\n${taskList}`);
+      }
+    });
+  }
+
+  // Đánh dấu hoàn thành
+  else if (text.startsWith('hoàn thành task')) {
+    const taskId = text.replace('hoàn thành task', '').trim();
+    updateTaskStatus(taskId, 'Hoàn thành', (err) => {
+      if (err) {
+        sendMessage(user_id, 'Lỗi khi cập nhật task!');
+      } else {
+        sendMessage(user_id, `Task ${taskId} đã được đánh dấu hoàn thành.`);
+      }
+    });
+  }
+
+  // Chào hỏi ban đầu
+  else {
+    sendButtonMessage(user_id, 'Chào bạn! Tôi là Zalo Task. Bạn muốn làm gì?', [
+      { title: 'Tạo công việc', payload: 'tạo task' },
+      { title: 'Xem danh sách task', payload: 'xem danh sách task' }
+    ]);
+  }
+
+  res.status(200).send('OK');
+});
+
+// Khởi động server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+6. Cách chạy
+Thay YOUR_ZALO_ACCESS_TOKEN trong zalo.js bằng token thực tế từ Zalo OA.
+Chạy lệnh:
+bash
+node index.js
+Cấu hình webhook trong Zalo OA để trỏ về server của bạn (ví dụ: https://your-server.com/webhook).
+Nhắn tin vào OA để thử các lệnh như:
+"Tạo task: Hoàn thành báo cáo trước 5PM"
+"Xem danh sách task"
+"Hoàn thành task 1"
+Hạn chế và mở rộng
+Hạn chế: Hiện chỉ hỗ trợ cơ bản (tạo task, xem task, cập nhật trạng thái). Chưa có tích hợp nhóm hoặc AI thông minh.
+Mở rộng:
+Thêm NLP (ví dụ: dùng Google Dialogflow) để xử lý lệnh tiếng Việt tự nhiên hơn.
+Tích hợp Zalo Group để giao task cho nhiều người.
+Thêm cron job để gửi nhắc nhở tự động dựa trên deadline.
